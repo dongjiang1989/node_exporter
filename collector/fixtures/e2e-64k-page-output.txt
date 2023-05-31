@@ -2922,6 +2922,7 @@ node_scrape_collector_success{collector="schedstat"} 1
 node_scrape_collector_success{collector="selinux"} 1
 node_scrape_collector_success{collector="slabinfo"} 1
 node_scrape_collector_success{collector="sockstat"} 1
+node_scrape_collector_success{collector="softirqs"} 1
 node_scrape_collector_success{collector="softnet"} 1
 node_scrape_collector_success{collector="stat"} 1
 node_scrape_collector_success{collector="sysctl"} 1
@@ -3028,6 +3029,28 @@ node_sockstat_UDP_mem_bytes 0
 # HELP node_sockstat_sockets_used Number of IPv4 sockets in use.
 # TYPE node_sockstat_sockets_used gauge
 node_sockstat_sockets_used 229
+# HELP node_softirqs_functions_total Softirq counts per CPU.
+# TYPE node_softirqs_functions_total counter
+node_softirqs_functions_total{cpu="0",type="BLOCK"} 23776
+node_softirqs_functions_total{cpu="0",type="HI"} 7
+node_softirqs_functions_total{cpu="0",type="HRTIMER"} 40
+node_softirqs_functions_total{cpu="0",type="IRQ_POLL"} 0
+node_softirqs_functions_total{cpu="0",type="NET_RX"} 43066
+node_softirqs_functions_total{cpu="0",type="NET_TX"} 2301
+node_softirqs_functions_total{cpu="0",type="RCU"} 155929
+node_softirqs_functions_total{cpu="0",type="SCHED"} 378895
+node_softirqs_functions_total{cpu="0",type="TASKLET"} 372
+node_softirqs_functions_total{cpu="0",type="TIMER"} 424191
+node_softirqs_functions_total{cpu="1",type="BLOCK"} 24115
+node_softirqs_functions_total{cpu="1",type="HI"} 1
+node_softirqs_functions_total{cpu="1",type="HRTIMER"} 346
+node_softirqs_functions_total{cpu="1",type="IRQ_POLL"} 0
+node_softirqs_functions_total{cpu="1",type="NET_RX"} 104508
+node_softirqs_functions_total{cpu="1",type="NET_TX"} 2430
+node_softirqs_functions_total{cpu="1",type="RCU"} 146631
+node_softirqs_functions_total{cpu="1",type="SCHED"} 152852
+node_softirqs_functions_total{cpu="1",type="TASKLET"} 1899
+node_softirqs_functions_total{cpu="1",type="TIMER"} 108342
 # HELP node_softirqs_total Number of softirq calls.
 # TYPE node_softirqs_total counter
 node_softirqs_total{vector="block"} 186066
@@ -3040,18 +3063,42 @@ node_softirqs_total{vector="rcu"} 508444
 node_softirqs_total{vector="sched"} 622196
 node_softirqs_total{vector="tasklet"} 1.783454e+06
 node_softirqs_total{vector="timer"} 1.481983e+06
+# HELP node_softnet_backlog_len Softnet backlog status
+# TYPE node_softnet_backlog_len gauge
+node_softnet_backlog_len{cpu="0"} 0
+node_softnet_backlog_len{cpu="1"} 0
+node_softnet_backlog_len{cpu="2"} 0
+node_softnet_backlog_len{cpu="3"} 0
+# HELP node_softnet_cpu_collision_total Number of collision occur while obtaining device lock while transmitting
+# TYPE node_softnet_cpu_collision_total counter
+node_softnet_cpu_collision_total{cpu="0"} 0
+node_softnet_cpu_collision_total{cpu="1"} 0
+node_softnet_cpu_collision_total{cpu="2"} 0
+node_softnet_cpu_collision_total{cpu="3"} 0
 # HELP node_softnet_dropped_total Number of dropped packets
 # TYPE node_softnet_dropped_total counter
 node_softnet_dropped_total{cpu="0"} 0
 node_softnet_dropped_total{cpu="1"} 41
 node_softnet_dropped_total{cpu="2"} 0
 node_softnet_dropped_total{cpu="3"} 0
+# HELP node_softnet_flow_limit_count_total Number of times flow limit has been reached
+# TYPE node_softnet_flow_limit_count_total counter
+node_softnet_flow_limit_count_total{cpu="0"} 0
+node_softnet_flow_limit_count_total{cpu="1"} 0
+node_softnet_flow_limit_count_total{cpu="2"} 0
+node_softnet_flow_limit_count_total{cpu="3"} 0
 # HELP node_softnet_processed_total Number of processed packets
 # TYPE node_softnet_processed_total counter
 node_softnet_processed_total{cpu="0"} 299641
 node_softnet_processed_total{cpu="1"} 916354
 node_softnet_processed_total{cpu="2"} 5.577791e+06
 node_softnet_processed_total{cpu="3"} 3.113785e+06
+# HELP node_softnet_received_rps_total Number of times cpu woken up received_rps
+# TYPE node_softnet_received_rps_total counter
+node_softnet_received_rps_total{cpu="0"} 0
+node_softnet_received_rps_total{cpu="1"} 0
+node_softnet_received_rps_total{cpu="2"} 0
+node_softnet_received_rps_total{cpu="3"} 0
 # HELP node_softnet_times_squeezed_total Number of times processing packets ran out of quota
 # TYPE node_softnet_times_squeezed_total counter
 node_softnet_times_squeezed_total{cpu="0"} 1
