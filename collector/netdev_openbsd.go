@@ -11,16 +11,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build openbsd && !amd64 && !nonetdev
-// +build openbsd,!amd64,!nonetdev
+//go:build !nonetdev && !amd64
+// +build !nonetdev,!amd64
 
 package collector
 
 import (
 	"errors"
-
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
+	"log/slog"
 )
 
 /*
@@ -31,7 +29,7 @@ import (
 */
 import "C"
 
-func getNetDevStats(filter *deviceFilter, logger log.Logger) (netDevStats, error) {
+func getNetDevStats(filter *deviceFilter, logger *slog.Logger) (netDevStats, error) {
 	netDev := netDevStats{}
 
 	var ifap, ifa *C.struct_ifaddrs
@@ -47,7 +45,7 @@ func getNetDevStats(filter *deviceFilter, logger log.Logger) (netDevStats, error
 
 		dev := C.GoString(ifa.ifa_name)
 		if filter.ignored(dev) {
-			level.Debug(logger).Log("msg", "Ignoring device", "device", dev)
+			logger.Debug("Ignoring device", "device", dev)
 			continue
 		}
 
@@ -71,4 +69,9 @@ func getNetDevStats(filter *deviceFilter, logger log.Logger) (netDevStats, error
 	}
 
 	return netDev, nil
+}
+
+func getNetDevLabels() (map[string]map[string]string, error) {
+	// to be implemented if needed
+	return nil, nil
 }

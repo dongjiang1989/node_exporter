@@ -26,10 +26,10 @@ For automated installs with [Ansible](https://www.ansible.com/), there is the [P
 
 ### Docker
 
-The `node_exporter` is designed to monitor the host system. It's not recommended
-to deploy it as a Docker container because it requires access to the host system.
+The `node_exporter` is designed to monitor the host system. Deploying in containers requires
+extra care in order to avoid monitoring the container itself.
 
-For situations where Docker deployment is needed, some extra flags must be used to allow
+For situations where containerized deployment is needed, some extra flags must be used to allow
 the `node_exporter` access to the host namespaces.
 
 Be aware that any non-root mount points you want to monitor will need to be bind-mounted
@@ -97,12 +97,16 @@ arp | device | --collector.arp.device-include | --collector.arp.device-exclude
 cpu | bugs | --collector.cpu.info.bugs-include | N/A
 cpu | flags | --collector.cpu.info.flags-include | N/A
 diskstats | device | --collector.diskstats.device-include | --collector.diskstats.device-exclude
-ethtool | device | N/A | --collector.ethtool.device-exclude
+ethtool | device | --collector.ethtool.device-include | --collector.ethtool.device-exclude
 ethtool | metrics | --collector.ethtool.metrics-include | N/A
-filesystem | fs-types | N/A | --collector.filesystem.fs-types-exclude
-filesystem | mount-points | N/A | --collector.filesystem.mount-points-exclude
+filesystem | fs-types | --collector.filesystem.fs-types-include | --collector.filesystem.fs-types-exclude
+filesystem | mount-points | --collector.filesystem.mount-points-include | --collector.filesystem.mount-points-exclude
+hwmon | chip | --collector.hwmon.chip-include | --collector.hwmon.chip-exclude
+hwmon | sensor | --collector.hwmon.sensor-include | --collector.hwmon.sensor-exclude
+interrupts | name | --collector.interrupts.name-include | --collector.interrupts.name-exclude
 netdev | device | --collector.netdev.device-include | --collector.netdev.device-exclude
 qdisk | device | --collector.qdisk.device-include | --collector.qdisk.device-exclude
+slabinfo | slab-names | --collector.slabinfo.slabs-include | --collector.slabinfo.slabs-exclude
 sysctl | all | --collector.sysctl.include | N/A
 systemd | unit | --collector.systemd.unit-include | --collector.systemd.unit-exclude
 
@@ -157,6 +161,7 @@ timex | Exposes selected adjtimex(2) system call stats. | Linux
 udp_queues | Exposes UDP total lengths of the rx_queue and tx_queue from `/proc/net/udp` and `/proc/net/udp6`. | Linux
 uname | Exposes system information as provided by the uname system call. | Darwin, FreeBSD, Linux, OpenBSD
 vmstat | Exposes statistics from `/proc/vmstat`. | Linux
+watchdog | Exposes statistics from `/sys/class/watchdog` | Linux
 xfs | Exposes XFS runtime statistics. | Linux (kernel 4.4+)
 zfs | Exposes [ZFS](http://open-zfs.org/) performance statistics. | FreeBSD, [Linux](http://zfsonlinux.org/), Solaris
 
@@ -185,13 +190,14 @@ buddyinfo | Exposes statistics of memory fragments as reported by /proc/buddyinf
 cgroups | A summary of the number of active and enabled cgroups | Linux
 cpu\_vulnerabilities | Exposes CPU vulnerability information from sysfs. | Linux
 devstat | Exposes device statistics | Dragonfly, FreeBSD
+drm | Expose GPU metrics using sysfs / DRM, `amdgpu` is the only driver which exposes this information through DRM | Linux
 drbd | Exposes Distributed Replicated Block Device statistics (to version 8.4) | Linux
 ethtool | Exposes network interface information and network driver statistics equivalent to `ethtool`, `ethtool -S`, and `ethtool -i`. | Linux
 interrupts | Exposes detailed interrupts statistics. | Linux, OpenBSD
 ksmd | Exposes kernel and system statistics from `/sys/kernel/mm/ksm`. | Linux
 lnstat | Exposes stats from `/proc/net/stat/`. | Linux
 logind | Exposes session counts from [logind](http://www.freedesktop.org/wiki/Software/systemd/logind/). | Linux
-meminfo\_numa | Exposes memory statistics from `/proc/meminfo_numa`. | Linux
+meminfo\_numa | Exposes memory statistics from `/sys/devices/system/node/node[0-9]*/meminfo`, `/sys/devices/system/node/node[0-9]*/numastat`. | Linux
 mountstats | Exposes filesystem statistics from `/proc/self/mountstats`. Exposes detailed NFS client statistics. | Linux
 network_route | Exposes the routing table as metrics | Linux
 perf | Exposes perf based metrics (Warning: Metrics are dependent on kernel configuration and settings). | Linux
@@ -203,6 +209,7 @@ sysctl | Expose sysctl values from `/proc/sys`. Use `--collector.sysctl.include(
 systemd | Exposes service and system status from [systemd](http://www.freedesktop.org/wiki/Software/systemd/). | Linux
 tcpstat | Exposes TCP connection status information from `/proc/net/tcp` and `/proc/net/tcp6`. (Warning: the current version has potential performance issues in high load situations.) | Linux
 wifi | Exposes WiFi device and station statistics. | Linux
+xfrm | Exposes statistics from `/proc/net/xfrm_stat` | Linux
 zoneinfo | Exposes NUMA memory zone metrics. | Linux
 
 ### Deprecated
@@ -332,13 +339,21 @@ mv /path/to/directory/role.prom.$$ /path/to/directory/role.prom
 
 The `node_exporter` will expose all metrics from enabled collectors by default.  This is the recommended way to collect metrics to avoid errors when comparing metrics of different families.
 
-For advanced use the `node_exporter` can be passed an optional list of collectors to filter metrics. The `collect[]` parameter may be used multiple times.  In Prometheus configuration you can use this syntax under the [scrape config](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#<scrape_config>).
+For advanced use the `node_exporter` can be passed an optional list of collectors to filter metrics. The parameters `collect[]` and `exclude[]` can be used multiple times (but cannot be combined).  In Prometheus configuration you can use this syntax under the [scrape config](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#<scrape_config>).
 
+Collect only `cpu` and `meminfo` collector metrics:
 ```
   params:
     collect[]:
-      - foo
-      - bar
+      - cpu
+      - meminfo
+```
+
+Collect all enabled collector metrics but exclude `netdev`:
+```
+  params:
+    exclude[]:
+      - netdev
 ```
 
 This can be useful for having different Prometheus servers collect specific metrics from nodes.
@@ -367,7 +382,7 @@ To see all available configuration flags:
 
 ## TLS endpoint
 
-** EXPERIMENTAL **
+**EXPERIMENTAL**
 
 The exporter supports TLS via a new web configuration file.
 
@@ -375,7 +390,7 @@ The exporter supports TLS via a new web configuration file.
 ./node_exporter --web.config.file=web-config.yml
 ```
 
-See the [exporter-toolkit https package](https://github.com/prometheus/exporter-toolkit/blob/v0.1.0/https/README.md) for more details.
+See the [exporter-toolkit web-configuration](https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md) for more details.
 
 [travis]: https://travis-ci.org/prometheus/node_exporter
 [hub]: https://hub.docker.com/r/prom/node-exporter/

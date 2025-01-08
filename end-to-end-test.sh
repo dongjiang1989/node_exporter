@@ -40,7 +40,6 @@ enabled_collectors=$(cat << COLLECTORS
   qdisc
   rapl
   schedstat
-  selinux
   slabinfo
   sockstat
   softirqs
@@ -50,13 +49,16 @@ enabled_collectors=$(cat << COLLECTORS
   thermal_zone
   udp_queues
   vmstat
+  watchdog
   wifi
+  xfrm
   xfs
   zfs
   zoneinfo
 COLLECTORS
 )
 disabled_collectors=$(cat << COLLECTORS
+  selinux
   filesystem
   timex
   uname
@@ -130,8 +132,10 @@ fi
   --collector.textfile.directory="collector/fixtures/textfile/two_metric_files/" \
   --collector.wifi.fixtures="collector/fixtures/wifi" \
   --collector.qdisc.fixtures="collector/fixtures/qdisc/" \
-  --collector.qdisk.device-include="(wlan0|eth0)" \
+  --collector.qdisc.device-include="(wlan0|eth0)" \
   --collector.arp.device-exclude="nope" \
+  --no-collector.arp.netlink \
+  --collector.hwmon.chip-include="(applesmc|coretemp|hwmon4|nct6779)" \
   --collector.netclass.ignored-devices="(dmz|int)" \
   --collector.netclass.ignore-invalid-speed \
   --collector.netdev.device-include="lo" \

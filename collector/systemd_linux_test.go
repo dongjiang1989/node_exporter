@@ -11,14 +11,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !nosystemd
+// +build !nosystemd
+
 package collector
 
 import (
+	"io"
+	"log/slog"
 	"regexp"
 	"testing"
 
 	"github.com/coreos/go-systemd/v22/dbus"
-	"github.com/go-kit/log"
 )
 
 // Creates mock UnitLists
@@ -91,7 +95,7 @@ func TestSystemdIgnoreFilter(t *testing.T) {
 	fixtures := getUnitListFixtures()
 	includePattern := regexp.MustCompile("^foo$")
 	excludePattern := regexp.MustCompile("^bar$")
-	filtered := filterUnits(fixtures[0], includePattern, excludePattern, log.NewNopLogger())
+	filtered := filterUnits(fixtures[0], includePattern, excludePattern, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	for _, unit := range filtered {
 		if excludePattern.MatchString(unit.Name) || !includePattern.MatchString(unit.Name) {
 			t.Error(unit.Name, "should not be in the filtered list")
@@ -99,14 +103,14 @@ func TestSystemdIgnoreFilter(t *testing.T) {
 	}
 }
 func TestSystemdIgnoreFilterDefaultKeepsAll(t *testing.T) {
-	logger := log.NewNopLogger()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	c, err := NewSystemdCollector(logger)
 	if err != nil {
 		t.Fatal(err)
 	}
 	fixtures := getUnitListFixtures()
 	collector := c.(*systemdCollector)
-	filtered := filterUnits(fixtures[0], collector.unitIncludePattern, collector.unitExcludePattern, logger)
+	filtered := filterUnits(fixtures[0], collector.systemdUnitIncludePattern, collector.systemdUnitExcludePattern, logger)
 	// Adjust fixtures by 3 "not-found" units.
 	if len(filtered) != len(fixtures[0])-3 {
 		t.Error("Default filters removed units")

@@ -18,26 +18,27 @@ package collector
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/jsimonetti/rtnetlink"
+	"github.com/jsimonetti/rtnetlink/v2"
 	"github.com/prometheus/procfs"
+	"github.com/prometheus/procfs/sysfs"
 )
 
 var (
-	netDevNetlink = kingpin.Flag("collector.netdev.netlink", "Use netlink to gather stats instead of /proc/net/dev.").Default("true").Bool()
+	netDevNetlink      = kingpin.Flag("collector.netdev.netlink", "Use netlink to gather stats instead of /proc/net/dev.").Default("true").Bool()
+	netdevLabelIfAlias = kingpin.Flag("collector.netdev.label-ifalias", "Add ifAlias label").Default("false").Bool()
 )
 
-func getNetDevStats(filter *deviceFilter, logger log.Logger) (netDevStats, error) {
+func getNetDevStats(filter *deviceFilter, logger *slog.Logger) (netDevStats, error) {
 	if *netDevNetlink {
 		return netlinkStats(filter, logger)
 	}
 	return procNetDevStats(filter, logger)
 }
 
-func netlinkStats(filter *deviceFilter, logger log.Logger) (netDevStats, error) {
+func netlinkStats(filter *deviceFilter, logger *slog.Logger) (netDevStats, error) {
 	conn, err := rtnetlink.Dial(nil)
 	if err != nil {
 		return nil, err
@@ -52,15 +53,54 @@ func netlinkStats(filter *deviceFilter, logger log.Logger) (netDevStats, error) 
 	return parseNetlinkStats(links, filter, logger), nil
 }
 
-func parseNetlinkStats(links []rtnetlink.LinkMessage, filter *deviceFilter, logger log.Logger) netDevStats {
+func parseNetlinkStats(links []rtnetlink.LinkMessage, filter *deviceFilter, logger *slog.Logger) netDevStats {
 	metrics := netDevStats{}
 
 	for _, msg := range links {
+		if msg.Attributes == nil {
+			logger.Debug("No netlink attributes, skipping")
+			continue
+		}
 		name := msg.Attributes.Name
 		stats := msg.Attributes.Stats64
+		if stats32 := msg.Attributes.Stats; stats == nil && stats32 != nil {
+			stats = &rtnetlink.LinkStats64{
+				RXPackets:          uint64(stats32.RXPackets),
+				TXPackets:          uint64(stats32.TXPackets),
+				RXBytes:            uint64(stats32.RXBytes),
+				TXBytes:            uint64(stats32.TXBytes),
+				RXErrors:           uint64(stats32.RXErrors),
+				TXErrors:           uint64(stats32.TXErrors),
+				RXDropped:          uint64(stats32.RXDropped),
+				TXDropped:          uint64(stats32.TXDropped),
+				Multicast:          uint64(stats32.Multicast),
+				Collisions:         uint64(stats32.Collisions),
+				RXLengthErrors:     uint64(stats32.RXLengthErrors),
+				RXOverErrors:       uint64(stats32.RXOverErrors),
+				RXCRCErrors:        uint64(stats32.RXCRCErrors),
+				RXFrameErrors:      uint64(stats32.RXFrameErrors),
+				RXFIFOErrors:       uint64(stats32.RXFIFOErrors),
+				RXMissedErrors:     uint64(stats32.RXMissedErrors),
+				TXAbortedErrors:    uint64(stats32.TXAbortedErrors),
+				TXCarrierErrors:    uint64(stats32.TXCarrierErrors),
+				TXFIFOErrors:       uint64(stats32.TXFIFOErrors),
+				TXHeartbeatErrors:  uint64(stats32.TXHeartbeatErrors),
+				TXWindowErrors:     uint64(stats32.TXWindowErrors),
+				RXCompressed:       uint64(stats32.RXCompressed),
+				TXCompressed:       uint64(stats32.TXCompressed),
+				RXNoHandler:        uint64(stats32.RXNoHandler),
+				RXOtherhostDropped: 0,
+			}
+		}
 
 		if filter.ignored(name) {
-			level.Debug(logger).Log("msg", "Ignoring device", "device", name)
+			logger.Debug("Ignoring device", "device", name)
+			continue
+		}
+
+		// Make sure we don't panic when accessing `stats` attributes below.
+		if stats == nil {
+			logger.Debug("No netlink stats, skipping")
 			continue
 		}
 
@@ -102,7 +142,7 @@ func parseNetlinkStats(links []rtnetlink.LinkMessage, filter *deviceFilter, logg
 	return metrics
 }
 
-func procNetDevStats(filter *deviceFilter, logger log.Logger) (netDevStats, error) {
+func procNetDevStats(filter *deviceFilter, logger *slog.Logger) (netDevStats, error) {
 	metrics := netDevStats{}
 
 	fs, err := procfs.NewFS(*procPath)
@@ -119,7 +159,7 @@ func procNetDevStats(filter *deviceFilter, logger log.Logger) (netDevStats, erro
 		name := stats.Name
 
 		if filter.ignored(name) {
-			level.Debug(logger).Log("msg", "Ignoring device", "device", name)
+			logger.Debug("Ignoring device", "device", name)
 			continue
 		}
 
@@ -144,4 +184,27 @@ func procNetDevStats(filter *deviceFilter, logger log.Logger) (netDevStats, erro
 	}
 
 	return metrics, nil
+}
+
+func getNetDevLabels() (map[string]map[string]string, error) {
+	if !*netdevLabelIfAlias {
+		return nil, nil
+	}
+
+	fs, err := sysfs.NewFS(*sysPath)
+	if err != nil {
+		return nil, err
+	}
+
+	interfaces, err := fs.NetClass()
+	if err != nil {
+		return nil, err
+	}
+
+	labels := make(map[string]map[string]string)
+	for iface, params := range interfaces {
+		labels[iface] = map[string]string{"ifalias": params.IfAlias}
+	}
+
+	return labels, nil
 }

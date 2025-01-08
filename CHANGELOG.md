@@ -5,6 +5,55 @@
 * [ENHANCEMENT]
 * [BUGFIX]
 
+## 1.8.1 / 2024-05-16
+
+* [BUGFIX] Fix CPU seconds on Solaris #2963
+* [BUGFIX] Sign Darwin/MacOS binaries #3008
+* [BUGFIX] Fix pressure collector nil reference #3016
+
+## 1.8.0 / 2024-04-24
+
+* [CHANGE] exec_bsd: Fix labels for `vm.stats.sys.v_syscall` sysctl #2895
+* [CHANGE] diskstats: Ignore zram devices on linux systems #2898
+* [CHANGE] textfile: Avoid inconsistent help-texts  #2962
+* [CHANGE] os: Removed caching of modtime/filename of os-release file #2987
+* [FEATURE] xfrm: Add new collector #2866
+* [FEATURE] watchdog: Add new collector #2880
+* [ENHANCEMENT] cpu_vulnerabilities: Add mitigation information label #2806
+* [ENHANCEMENT] nfsd: Handle new `wdeleg_getattr` attribute #2810
+* [ENHANCEMENT] netstat: Add TCPOFOQueue to default netstat metrics #2867
+* [ENHANCEMENT] filesystem: surface device errors #2923
+* [ENHANCEMENT] os: Add support end parsing #2982
+* [ENHANCEMENT] zfs: Log mib when sysctl read fails on FreeBSD #2975
+* [ENHANCEMENT] fibre_channel: update procfs to take into account optional attributes #2933
+* [BUGFIX] cpu: Fix debug log in cpu collector #2857
+* [BUGFIX] hwmon: Fix hwmon nil ptr #2873
+* [BUGFIX] hwmon: Fix hwmon error capture #2915
+* [BUGFIX] zfs: Revert "Add ZFS freebsd per dataset stats #2925
+* [BUGFIX] ethtool: Sanitize ethtool metric name keys #2940
+* [BUGFIX] fix: data race of NetClassCollector metrics initialization #2995
+
+## 1.7.0 / 2023-11-11
+
+* [FEATURE] Add ZFS freebsd per dataset stats #2753
+* [FEATURE] Add cpu vulnerabilities reporting from sysfs #2721
+* [ENHANCEMENT] Parallelize stat calls in Linux filesystem collector #1772
+* [ENHANCEMENT] Add missing linkspeeds to ethtool collector 2711
+* [ENHANCEMENT] Add CPU MHz as the value for `node_cpu_info` metric #2778
+* [ENHANCEMENT] Improve qdisc collector performance #2779
+* [ENHANCEMENT] Add include and exclude filter for hwmon collector #2699
+* [ENHANCEMENT] Optionally fetch ARP stats via rtnetlink instead of procfs #2777
+* [BUFFIX] Fix ZFS arcstats on FreeBSD 14.0+ 2754
+* [BUGFIX] Fallback to 32-bit stats in netdev #2757
+* [BUGFIX] Close btrfs.FS handle after use #2780
+* [BUGFIX] Move RO status before error return #2807
+* [BUFFIX] Fix `promhttp_metric_handler_errors_total` being always active #2808
+* [BUGFIX] Fix nfsd v4 index miss #2824
+
+## 1.6.1 / 2023-06-17
+
+Rebuild with latest Go compiler bugfix release.
+
 ## 1.6.0 / 2023-05-27
 
 * [CHANGE] Fix cpustat when some cpus are offline #2318
@@ -29,8 +78,8 @@
 * [ENHANCEMENT] Use `SCSI_IDENT_SERIAL` as serial in diskstats #2612
 * [ENHANCEMENT] Read missing from netlink netclass attributes from sysfs #2669
 * [BUGFIX] perf: fixes for automatically detecting the correct tracefs mountpoints #2553
-* [BUGFIX] Fix `thermal_zone` collector noise @2554
-* [BUGFIX] Fix a problem fetching the user wire count on FreeBSD 2584
+* [BUGFIX] Fix `thermal_zone` collector noise #2554
+* [BUGFIX] Fix a problem fetching the user wire count on FreeBSD #2584
 * [BUGFIX] interrupts: Fix fields on linux aarch64 #2631
 * [BUGFIX] Remove metrics of offline CPUs in CPU collector #2605
 * [BUGFIX] Fix OpenBSD filesystem collector string parsing #2637
