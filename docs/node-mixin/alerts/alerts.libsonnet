@@ -408,16 +408,30 @@
             },
           },
           {
+            alert: 'NodeSystemdServiceCrashlooping',
+            expr: |||
+              increase(node_systemd_service_restart_total{%(nodeExporterSelector)s}[5m]) > 2
+            ||| % $._config,
+            'for': '15m',
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              summary: 'Systemd service keeps restaring, possibly crash looping.',
+              description: 'Systemd service {{ $labels.name }} has being restarted too many times at {{ $labels.instance }} for the last 15 minutes. Please check if service is crash looping.',
+            },
+          },
+          {
             alert: 'NodeBondingDegraded',
             expr: |||
-              (node_bonding_slaves - node_bonding_active) != 0
+              (node_bonding_slaves{%(nodeExporterSelector)s} - node_bonding_active{%(nodeExporterSelector)s}) != 0
             ||| % $._config,
             'for': '5m',
             labels: {
               severity: 'warning',
             },
             annotations: {
-              summary: 'Bonding interface is degraded',
+              summary: 'Bonding interface is degraded.',
               description: 'Bonding interface {{ $labels.master }} on {{ $labels.instance }} is in degraded state due to one or more slave failures.',
             },
           },

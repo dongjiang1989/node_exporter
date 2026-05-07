@@ -11,9 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build (darwin || dragonfly) && !nofilesystem
-// +build darwin dragonfly
-// +build !nofilesystem
+//go:build dragonfly && !nofilesystem
 
 package collector
 

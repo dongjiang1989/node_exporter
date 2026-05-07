@@ -12,7 +12,6 @@
 // limitations under the License.
 
 //go:build !nocpu
-// +build !nocpu
 
 package collector
 
@@ -30,6 +29,15 @@ import (
 	"golang.org/x/sys/unix"
 
 	"howett.net/plist"
+)
+
+const (
+	_IOC_OUT        = uint(0x40000000)
+	_IOC_IN         = uint(0x80000000)
+	_IOC_INOUT      = (_IOC_IN | _IOC_OUT)
+	_IOCPARM_MASK   = uint(0x1fff)
+	_IOCPARM_SHIFT  = uint(16)
+	_IOCGROUP_SHIFT = uint(8)
 )
 
 type clockinfo struct {
@@ -50,7 +58,7 @@ type cputime struct {
 
 type plistref struct {
 	pref_plist unsafe.Pointer
-	pref_len   uint64
+	pref_len   uint
 }
 
 type sysmonValues struct {
@@ -64,25 +72,19 @@ type sysmonProperty []sysmonValues
 
 type sysmonProperties map[string]sysmonProperty
 
-func readBytes(ptr unsafe.Pointer, length uint64) []byte {
-	buf := make([]byte, length-1)
-	var i uint64
-	for ; i < length-1; i++ {
-		buf[i] = *(*byte)(unsafe.Pointer(uintptr(ptr) + uintptr(i)))
-	}
-	return buf
+func _IOC(inout uint, group byte, num uint, len uintptr) uint {
+	return ((inout) | ((uint(len) & _IOCPARM_MASK) << _IOCPARM_SHIFT) | (uint(group) << _IOCGROUP_SHIFT) | (num))
 }
 
-func ioctl(fd int, nr int64, typ byte, size uintptr, retptr unsafe.Pointer) error {
+func _IOWR(group byte, num uint, len uintptr) uint {
+	return _IOC(_IOC_INOUT, group, num, len)
+}
+
+func ioctl(fd int, nr uint, typ byte, size uintptr, retptr unsafe.Pointer) error {
 	_, _, errno := unix.Syscall(
 		unix.SYS_IOCTL,
 		uintptr(fd),
-		// Some magicks derived from sys/ioccom.h.
-		uintptr((0x40000000|0x80000000)|
-			((int64(size)&(1<<13-1))<<16)|
-			(int64(typ)<<8)|
-			nr,
-		),
+		uintptr(_IOWR(typ, nr, size)),
 		uintptr(retptr),
 	)
 	if errno != 0 {
@@ -92,7 +94,7 @@ func ioctl(fd int, nr int64, typ byte, size uintptr, retptr unsafe.Pointer) erro
 }
 
 func readSysmonProperties() (sysmonProperties, error) {
-	fd, err := unix.Open(rootfsFilePath("/dev/sysmon"), unix.O_RDONLY, 0777)
+	fd, err := unix.Open(rootfsFilePath("/dev/sysmon"), unix.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -103,8 +105,8 @@ func readSysmonProperties() (sysmonProperties, error) {
 	if err = ioctl(fd, 0, 'E', unsafe.Sizeof(retptr), unsafe.Pointer(&retptr)); err != nil {
 		return nil, err
 	}
-
-	bytes := readBytes(retptr.pref_plist, retptr.pref_len)
+	defer unix.Syscall(unix.SYS_MUNMAP, uintptr(retptr.pref_plist), uintptr(retptr.pref_len), uintptr(0))
+	bytes := unsafe.Slice((*byte)(unsafe.Pointer(retptr.pref_plist)), retptr.pref_len-1)
 
 	var props sysmonProperties
 	if _, err = plist.Unmarshal(bytes, &props); err != nil {
@@ -152,7 +154,7 @@ func getCPUTemperatures() (map[int]float64, error) {
 	}
 
 	keys := sortFilterSysmonProperties(props, "coretemp")
-	for idx, _ := range keys {
+	for idx := range keys {
 		convertTemperatures(props[keys[idx]], res)
 	}
 
@@ -179,7 +181,7 @@ func getCPUTimes() ([]cputime, error) {
 	if err != nil {
 		return nil, err
 	}
-	ncpus := *(*int)(unsafe.Pointer(&ncpusb[0]))
+	ncpus := int(*(*uint32)(unsafe.Pointer(&ncpusb[0])))
 
 	if ncpus < 1 {
 		return nil, errors.New("Invalid cpu number")
@@ -191,10 +193,10 @@ func getCPUTimes() ([]cputime, error) {
 		if err != nil {
 			return nil, err
 		}
-		for len(cpb) >= int(unsafe.Sizeof(int(0))) {
-			t := *(*int)(unsafe.Pointer(&cpb[0]))
+		for len(cpb) >= int(unsafe.Sizeof(uint64(0))) {
+			t := *(*uint64)(unsafe.Pointer(&cpb[0]))
 			times = append(times, float64(t)/cpufreq)
-			cpb = cpb[unsafe.Sizeof(int(0)):]
+			cpb = cpb[unsafe.Sizeof(uint64(0)):]
 		}
 	}
 

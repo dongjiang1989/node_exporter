@@ -12,18 +12,15 @@
 // limitations under the License.
 
 //go:build !noarp
-// +build !noarp
 
 package collector
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/jsimonetti/rtnetlink/v2"
+	"github.com/jsimonetti/rtnetlink/v2/rtnl"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/procfs"
 	"golang.org/x/sys/unix"
@@ -38,13 +35,20 @@ var (
 type arpCollector struct {
 	fs           procfs.FS
 	deviceFilter deviceFilter
-	entries      *prometheus.Desc
 	logger       *slog.Logger
 }
 
 func init() {
 	registerCollector("arp", defaultEnabled, NewARPCollector)
 }
+
+var (
+	arpEntries = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "arp", "entries"),
+		"ARP entries by device",
+		[]string{"device"}, nil,
+	)
+)
 
 // NewARPCollector returns a new Collector exposing ARP stats.
 func NewARPCollector(logger *slog.Logger) (Collector, error) {
@@ -56,12 +60,7 @@ func NewARPCollector(logger *slog.Logger) (Collector, error) {
 	return &arpCollector{
 		fs:           fs,
 		deviceFilter: newDeviceFilter(*arpDeviceExclude, *arpDeviceInclude),
-		entries: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "arp", "entries"),
-			"ARP entries by device",
-			[]string{"device"}, nil,
-		),
-		logger: logger,
+		logger:       logger,
 	}, nil
 }
 
@@ -76,44 +75,30 @@ func getTotalArpEntries(deviceEntries []procfs.ARPEntry) map[string]uint32 {
 }
 
 func getTotalArpEntriesRTNL() (map[string]uint32, error) {
-	conn, err := rtnetlink.Dial(nil)
+	conn, err := rtnl.Dial(nil)
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
 
-	neighbors, err := conn.Neigh.List()
+	// Neighbors will also contain IPv6 neighbors, but since this is purely an ARP collector,
+	// restrict to AF_INET.
+	neighbors, err := conn.Neighbours(nil, unix.AF_INET)
 	if err != nil {
 		return nil, err
 	}
 
-	ifIndexEntries := make(map[uint32]uint32)
+	// Map of interface name to ARP neighbor count.
+	entries := make(map[string]uint32)
 
 	for _, n := range neighbors {
-		// Neighbors will also contain IPv6 neighbors, but since this is purely an ARP collector,
-		// restrict to AF_INET. Also skip entries which have state NUD_NOARP to conform to output
-		// of /proc/net/arp.
-		if n.Family == unix.AF_INET && n.State&unix.NUD_NOARP == 0 {
-			ifIndexEntries[n.Index]++
+		// Skip entries which have state NUD_NOARP to conform to output of /proc/net/arp.
+		if n.State&unix.NUD_NOARP == 0 {
+			entries[n.Interface.Name]++
 		}
 	}
 
-	enumEntries := make(map[string]uint32)
-
-	// Convert interface indexes to names.
-	for ifIndex, entryCount := range ifIndexEntries {
-		iface, err := net.InterfaceByIndex(int(ifIndex))
-		if err != nil {
-			if errors.Unwrap(err).Error() == "no such network interface" {
-				continue
-			}
-			return nil, err
-		}
-
-		enumEntries[iface.Name] = entryCount
-	}
-
-	return enumEntries, nil
+	return entries, nil
 }
 
 func (c *arpCollector) Update(ch chan<- prometheus.Metric) error {
@@ -140,7 +125,7 @@ func (c *arpCollector) Update(ch chan<- prometheus.Metric) error {
 			continue
 		}
 		ch <- prometheus.MustNewConstMetric(
-			c.entries, prometheus.GaugeValue, float64(entryCount), device)
+			arpEntries, prometheus.GaugeValue, float64(entryCount), device)
 	}
 
 	return nil

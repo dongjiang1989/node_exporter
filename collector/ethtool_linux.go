@@ -12,7 +12,6 @@
 // limitations under the License.
 
 //go:build !noethtool
-// +build !noethtool
 
 // The hard work of collecting data from the kernel via the ethtool interfaces is done by
 // https://github.com/safchain/ethtool/
@@ -372,7 +371,7 @@ func (c *ethtoolCollector) updateSpeeds(ch chan<- prometheus.Metric, prefix stri
 }
 
 func (c *ethtoolCollector) Update(ch chan<- prometheus.Metric) error {
-	netClass, err := c.fs.NetClass()
+	netClass, err := c.fs.NetClassDevices()
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, os.ErrPermission) {
 			c.logger.Debug("Could not read netclass file", "err", err)
@@ -385,7 +384,7 @@ func (c *ethtoolCollector) Update(ch chan<- prometheus.Metric) error {
 		return fmt.Errorf("no network devices found")
 	}
 
-	for device := range netClass {
+	for _, device := range netClass {
 		var stats map[string]uint64
 		var err error
 
@@ -446,13 +445,14 @@ func (c *ethtoolCollector) Update(ch chan<- prometheus.Metric) error {
 			}
 		}
 
-		if stats == nil || len(stats) < 1 {
+		if len(stats) == 0 {
 			// No stats returned; device does not support ethtool stats.
 			continue
 		}
 
 		// Sanitizing the metric names can lead to duplicate metric names. Therefore check for clashes beforehand.
 		metricFQNames := make(map[string]string)
+		renamedStats := make(map[string]uint64, len(stats))
 		for metric := range stats {
 			metricName := SanitizeMetricName(metric)
 			if !c.metricsPattern.MatchString(metricName) {
@@ -467,6 +467,8 @@ func (c *ethtoolCollector) Update(ch chan<- prometheus.Metric) error {
 				metricFQNames[metricFQName] = ""
 			} else {
 				metricFQNames[metricFQName] = metricName
+				// Later we'll go look for the stat with the "sanitized" metric name, so we can copy it there already
+				renamedStats[metricName] = stats[metric]
 			}
 		}
 
@@ -484,7 +486,7 @@ func (c *ethtoolCollector) Update(ch chan<- prometheus.Metric) error {
 				continue
 			}
 
-			val := stats[metric]
+			val := renamedStats[metric]
 
 			// Check to see if this metric exists; if not then create it and store it in c.entries.
 			entry := c.entryWithCreate(metric, metricFQName)
