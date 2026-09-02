@@ -16,7 +16,6 @@
 package collector
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -60,14 +59,12 @@ func (c *filesystemCollector) GetStats() ([]filesystemStats, error) {
 
 	workerCount := max(*statWorkerCount, 1)
 
-	for i := 0; i < workerCount; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range workerCount {
+		wg.Go(func() {
 			for labels := range labelChan {
 				statChan <- c.processStat(labels)
 			}
-		}()
+		})
 	}
 
 	go func() {
@@ -212,9 +209,9 @@ func parseFilesystemLabels(mountInfo []*procfs.MountInfo) ([]filesystemLabels, e
 		mount.MountPoint = strings.ReplaceAll(mount.MountPoint, "\\011", "\t")
 
 		filesystems = append(filesystems, filesystemLabels{
-			device:       mount.Source,
-			mountPoint:   rootfsStripPrefix(mount.MountPoint),
-			fsType:       mount.FSType,
+			device:       strings.ToValidUTF8(mount.Source, "�"),
+			mountPoint:   strings.ToValidUTF8(rootfsStripPrefix(mount.MountPoint), "�"),
+			fsType:       strings.ToValidUTF8(mount.FSType, "�"),
 			mountOptions: mountOptionsString(mount.Options),
 			superOptions: mountOptionsString(mount.SuperOptions),
 			major:        strconv.Itoa(major),
@@ -227,9 +224,13 @@ func parseFilesystemLabels(mountInfo []*procfs.MountInfo) ([]filesystemLabels, e
 }
 
 // see https://github.com/prometheus/node_exporter/issues/3157#issuecomment-2422761187
-// if either mount or super options contain "ro" the filesystem is read-only
+// if either mount or super options contain "ro" or the superblock contains "emergency_ro",
+// the filesystem is read-only
 func isFilesystemReadOnly(labels filesystemLabels) bool {
-	if slices.Contains(strings.Split(labels.mountOptions, ","), "ro") || slices.Contains(strings.Split(labels.superOptions, ","), "ro") {
+	mountOptions := strings.Split(labels.mountOptions, ",")
+	superOptions := strings.Split(labels.superOptions, ",")
+
+	if slices.Contains(mountOptions, "ro") || slices.Contains(superOptions, "ro") || slices.Contains(superOptions, "emergency_ro") {
 		return true
 	}
 
@@ -237,13 +238,13 @@ func isFilesystemReadOnly(labels filesystemLabels) bool {
 }
 
 func mountOptionsString(m map[string]string) string {
-	b := new(bytes.Buffer)
+	parts := make([]string, 0, len(m))
 	for key, value := range m {
 		if value == "" {
-			fmt.Fprintf(b, "%s", key)
+			parts = append(parts, key)
 		} else {
-			fmt.Fprintf(b, "%s=%s", key, value)
+			parts = append(parts, key+"="+value)
 		}
 	}
-	return b.String()
+	return strings.Join(parts, ",")
 }
